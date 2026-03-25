@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Emotion AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'happy': '#10B981',
+                        'sad': '#3B82F6',
+                        'neutral': '#6B7280'
+                    }
+                }
+            }
+        };
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gradient-to-br from-green-50 to-blue-100 min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-white/80 backdrop-blur-xl shadow-2xl rounded-3xl p-8 space-y-6 border border-white/50">
+        <div class="text-center">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-green-500 to-emerald-600 bg-clip-text text-transparent mb-2">
+                <i class="fas fa-leaf mr-2"></i>Eco-Empath
+            </h1>
+            <p class="text-gray-600 text-lg">AI detects your mood & suggests nature-inspired wellness</p>
+            <button onclick="startListening()" style="padding: 15px 30px; font-size: 18px; cursor: pointer;">
+        🎤 Speak Now
+    </button>
+        </div>
+
+        <div class="space-y-4">
+            <div class="relative">
+                <input type="text" id="textInput"
+                       placeholder="How are you feeling today? 🌿"
+                       class="w-full p-4 pr-12 text-lg border-2 border-gray-200 rounded-2xl focus:border-emerald-400 focus:outline-none transition-all bg-gray-50/50">
+                <button onclick="startListening()"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-600 text-white p-3 rounded-xl transition-all">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+
+            <button onclick="analyzeText()"
+                    class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all text-lg">
+                <i class="fas fa-brain mr-2"></i>Analyze Emotion
+            </button>
+        </div>
+
+        <div id="result" class="hidden space-y-4 p-6 bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl border-2 border-emerald-200">
+            <div id="emotion" class="text-3xl font-black text-center"></div>
+            <div id="suggestion" class="text-lg text-gray-700 p-4 bg-white/60 rounded-xl backdrop-blur-sm"></div>
+        </div>
+
+        <!-- ✅ Fixed: merged class attributes -->
+        <audio id="audioPlayer" class="w-full mx-auto block hidden" controls></audio>
+    </div>
+
+<script>
+function analyzeText() {
+    const textInput = document.getElementById("textInput");
+    const text = textInput.value;
+    
+    if (!text.trim()) return alert("Enter some text!");
+
+    console.log("Sending:", text);
+
+    fetch("/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("Received data:", data);
+
+        if (data.error) {
+            alert("Backend error: " + data.error);
+            return;
+        }
+
+        // 1. Update UI
+        const resultDiv = document.getElementById("result");
+        resultDiv.classList.remove("hidden");
+        document.getElementById("emotion").innerText = data.emotion || "Detected";
+        document.getElementById("suggestion").innerText = data.suggestion || "";
+
+        // 2. Handle Audio
+        if (data.audio) {
+            const audioPlayer = document.getElementById("audioPlayer");
+            // Add a timestamp to prevent browser caching issues
+            audioPlayer.src = data.audio + "?t=" + new Date().getTime();
+            audioPlayer.classList.remove("hidden");
+            
+            audioPlayer.play().catch(e => {
+                console.error("Audio auto-play failed:", e);
+                alert("Click the play button to hear the response.");
+            });
+        }
+    })
+    .catch(err => {
+        console.error("Fetch error:", err);
+        alert("Failed to connect to server. Ensure your Flask/backend is running.");
+    });
+}
+
+function startListening() {
+    // Check for browser support
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+        alert("Speech recognition is not supported in this browser. Please use Chrome or Edge.");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+        console.log("Listening...");
+        document.getElementById("textInput").placeholder = "Listening now...";
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech error:", event.error);
+        document.getElementById("textInput").placeholder = "Error: " + event.error;
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log("Voice to text:", transcript);
+        document.getElementById("textInput").value = transcript;
+        
+        // Short delay to let the user see the text before analyzing
+        setTimeout(() => {
+            analyzeText();
+        }, 500);
+    };
+
+    recognition.onend = () => {
+        console.log("Speech recognition ended.");
+        document.getElementById("textInput").placeholder = "How are you feeling today? 🌿";
+    };
+
+    recognition.start();
+}
+</script>
+
+</body>
+</html>
